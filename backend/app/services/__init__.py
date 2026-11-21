@@ -20,6 +20,7 @@ from app.services.mdm_quality import MdmQualityService
 from app.services.mdm_reference import MdmReferenceService
 from app.services.mdm_api import MdmApiService
 from app.services.mdm_dashboard import MdmDashboardService
+from app.services.field_delivery import FieldDeliveryService
 
 SERVICES: dict[str, BaseModuleService] = {
     "source_system": SourceSystemService(),
@@ -40,6 +41,7 @@ SERVICES: dict[str, BaseModuleService] = {
     "mdm_reference": MdmReferenceService(),
     "mdm_api": MdmApiService(),
     "mdm_dashboard": MdmDashboardService(),
+    "field_delivery": FieldDeliveryService(),
 }
 
 

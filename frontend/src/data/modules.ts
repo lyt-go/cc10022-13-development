@@ -200,6 +200,17 @@ export const MODULES: ModuleMeta[] = [
     actionTargets: {"提交校验": "待校验", "确认发布": "已发布", "停用看板": "已停用"},
     metrics: ["看板配置总数", "待校验看板", "已发布看板"],
   },
+  {
+    key: "field_delivery",
+    name: "共享字段交付",
+    entity: "渠道共享字段范围",
+    desc: "按渠道登记黄金模型可共享字段的授权范围，查询接口关联渠道权限生成交付数据并保存字段口径凭证，空配置受默认发布范围控制。",
+    fields: ["定义编号", "渠道", "黄金模型", "允许字段", "发布范围", "范围版本", "生效时间"],
+    statuses: ["草稿", "待校验", "已生效", "已撤回"],
+    actions: ["提交校验", "发布范围", "撤回授权"],
+    actionTargets: {"提交校验": "待校验", "发布范围": "已生效", "撤回授权": "已撤回"},
+    metrics: ["渠道范围总数", "待校验范围", "已生效范围"],
+  },
 ]
 
 export const MODULE_BY_KEY: Map<string, ModuleMeta> = new Map(

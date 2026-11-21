@@ -68,6 +68,21 @@ npm run dev
 | 参考数据管理 | `mdm_reference` | 参考数据 | 数据编号、数据类别、标准编码 |
 | 主数据查询接口 | `mdm_api` | 查询接口 | 接口编号、实体模型、查询字段 |
 | 主数据治理看板 | `mdm_dashboard` | 看板配置 | 看板编号、看板名称、监控实体 |
+| 共享字段交付 | `field_delivery` | 渠道共享字段范围 | 定义编号、渠道、黄金模型、允许字段、发布范围 |
+
+### 共享字段交付（按渠道读取黄金记录字段）
+
+渠道与黄金模型构成独立的字段授权范围，渠道之间互不影响；查询接口读取
+黄金记录时关联渠道权限，只交付被授权的字段，每次交付保存字段口径凭证。
+
+- `POST /api/field-delivery/scopes`：登记/更新渠道在某黄金模型上的允许字段与默认发布范围
+- `GET  /api/field-delivery/scopes`：查询渠道共享字段范围（可按渠道、黄金模型过滤）
+- `POST /api/field-delivery/scopes/revoke`：撤回渠道字段授权（历史凭证保留旧口径）
+- `POST /api/field-delivery/deliver`：按渠道权限生成共享字段交付数据并保存交付凭证
+- `GET  /api/field-delivery/ledger`：查询交付凭证，复核每次实际交付的字段口径
+- `POST /api/field-delivery/ledger/merge-check`：核对两份交付行是否受同一字段授权口径约束
+- `GET  /api/mdm-apis/{api_id}/query?channel=...&return_fields=...`：既有发布接口按渠道取数，
+  不传或留空 `return_fields` 时受渠道默认发布范围控制
 
 ## 约定
 

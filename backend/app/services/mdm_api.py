@@ -18,31 +18,59 @@ class MdmApiService(BaseModuleService):
     NEGATIVE_ACTIONS = ["下线接口"]
 
     def query_golden_records_by_api(self, api_id: int,
-                                      filters: dict[str, str] | None = None) -> dict[str, Any]:
-        """按查询接口定义查询黄金记录：标准化字段输出。
+                                      filters: dict[str, str] | None = None,
+                                      channel: str | None = None,
+                                      _api_override: dict[str, Any] | None = None) -> dict[str, Any]:
+        """按查询接口定义查询黄金记录：标准化字段输出并受渠道权限约束。
 
-        读取查询接口配置，按查询字段标准对黄金记录执行检索，
-        标准化返回字段格式并记录调用量统计。
+        读取查询接口配置，按查询字段标准对黄金记录执行检索。
+        - 传入渠道时，关联该渠道在黄金模型上的共享字段授权范围生成交付数据，
+          返回字段为空则受渠道默认发布范围控制，并保存本次字段口径凭证；
+        - 未传渠道（历史调用）也不再返回整份实体：显式返回字段按配置筛选，
+          空配置只保留黄金模型已登记的业务字段。
         """
-        api_def = self.get_entry(api_id)
+        api_def = _api_override or self.get_entry(api_id)
         if not api_def or api_def.get("status") != "已发布":
             return {"ok": False, "reason": "查询接口不可用"}
-        from app.services.golden_record import GoldenRecordService
-        golden_svc = GoldenRecordService()
         entity_model = api_def.get("实体模型", "")
         query_field = api_def.get("查询字段", "")
         return_fields = [
             f.strip() for f in api_def.get("返回字段", "").split(",") if f.strip()
         ]
+
+        if channel:
+            from app.services.field_delivery import FieldDeliveryService
+            delivery = FieldDeliveryService().deliver_shared_fields(
+                channel=channel,
+                golden_model=entity_model,
+                requested_fields=return_fields or None,
+                filters=filters,
+                query_field=query_field,
+                api_id=api_id,
+            )
+            if not delivery.get("ok"):
+                return delivery
+            self._record_api_call(api_id)
+            delivery["api_id"] = api_def.get("接口编号")
+            return delivery
+
+        from app.services.golden_record import GoldenRecordService
+        golden_svc = GoldenRecordService()
         records = golden_svc.search_golden_records(entity_model=entity_model)
         if filters and query_field:
             records = [
                 r for r in records
                 if filters.get(query_field, "").casefold() in str(r.get(query_field, "")).casefold()
             ]
-        # 标准化查询结果：按接口定义筛选并格式化返回字段
         if return_fields:
+            # 显式选择的允许字段：对照接口返回字段输出
             records = [{f: r.get(f) for f in return_fields if f in r} for r in records]
+        else:
+            # 空配置不再泄露整份实体模型，仅保留黄金模型已登记的业务字段
+            model_fields = golden_svc.LIST_FIELDS
+            records = [
+                {f: r.get(f) for f in model_fields if f in r} for r in records
+            ]
         self._record_api_call(api_id)
         return {"ok": True, "records": records, "count": len(records), "api_id": api_def.get("接口编号")}
 
@@ -87,24 +115,37 @@ class MdmApiService(BaseModuleService):
         }
 
     def export_api_response(self, api_id: int,
-                              format_type: str = "json") -> list[dict[str, Any]]:
+                              format_type: str = "json",
+                              channel: str | None = None) -> list[dict[str, Any]]:
         """导出查询接口响应：按指定格式导出黄金记录查询结果。
 
         标准化查询接口的输出格式，将黄金记录按字段约定
-        转换为JSON/CSV格式供下游系统消费。
+        转换为JSON/CSV格式供下游系统消费；传入渠道时按渠道授权口径导出，
+        未传渠道且返回字段为空时只导出黄金模型已登记的业务字段。
         """
         api_def = self.get_entry(api_id)
         if not api_def:
             return []
         from app.services.golden_record import GoldenRecordService
         golden_svc = GoldenRecordService()
-        records = golden_svc.search_golden_records(
-            entity_model=api_def.get("实体模型", "")
-        )
         return_fields = [
             f.strip() for f in api_def.get("返回字段", "").split(",") if f.strip()
         ]
+        if channel:
+            from app.services.field_delivery import FieldDeliveryService
+            delivery = FieldDeliveryService().deliver_shared_fields(
+                channel=channel,
+                golden_model=api_def.get("实体模型", ""),
+                requested_fields=return_fields or None,
+                api_id=api_id,
+            )
+            return delivery.get("records", []) if delivery.get("ok") else []
+        records = golden_svc.search_golden_records(
+            entity_model=api_def.get("实体模型", "")
+        )
         # 导出查询接口响应：标准化输出格式并返回黄金记录
         if return_fields:
             return [{f: r.get(f) for f in return_fields if f in r} for r in records]
-        return list(records)
+        # 空配置不导出整份实体，仅保留黄金模型已登记的业务字段
+        model_fields = golden_svc.LIST_FIELDS
+        return [{f: r.get(f) for f in model_fields if f in r} for r in records]
